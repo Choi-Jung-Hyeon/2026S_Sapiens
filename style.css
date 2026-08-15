@@ -1,0 +1,236 @@
+/* PackCheck 스타일 시트
+   색상은 아래 :root 값만 바꾸면 화면 전체에 반영됩니다. */
+
+  :root {
+    --bg: #FAFAFA;
+    --card: #FFFFFF;
+    --text: #1A1A1A;
+    --sub: #767676;
+    --line: #EAEAEA;
+    --point: #2B6CB0;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+    overflow-x: hidden;
+  }
+  button { font-family: inherit; font-size: inherit; cursor: pointer; }
+
+  .wrap {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 0 16px 140px;
+  }
+
+  /* 상단 헤더 */
+  .head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 18px 0 10px;
+  }
+  .logo { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
+  .reset-btn {
+    background: none; border: none; color: var(--sub);
+    font-size: 14px; text-decoration: underline;
+    padding: 12px 4px; min-height: 44px;
+  }
+
+  .lead { color: var(--sub); font-size: 14px; margin: 0 0 20px; }
+
+  /* STEP 1 입력 */
+  .field { margin-bottom: 22px; }
+  .field-label { font-size: 15px; font-weight: 600; margin-bottom: 10px; }
+  .opts { display: flex; flex-wrap: wrap; gap: 8px; }
+  .opt {
+    flex: 1 1 auto;
+    min-width: 72px;
+    min-height: 44px;
+    padding: 10px 12px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: 15px;
+    transition: opacity 150ms, transform 150ms;
+  }
+  .opt:active { transform: scale(0.98); }
+  .opt[aria-pressed="true"] {
+    border-color: var(--point);
+    color: var(--point);
+    font-weight: 600;
+    box-shadow: inset 0 0 0 1px var(--point);
+  }
+  select {
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 12px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 15px;
+  }
+  .hidden { display: none; }
+
+  /* 기본 버튼 */
+  .primary {
+    display: block;
+    width: 100%;
+    min-height: 52px;
+    padding: 14px;
+    background: var(--point);
+    border: 1px solid var(--point);
+    border-radius: var(--radius);
+    color: #FFFFFF;
+    font-size: 17px;
+    font-weight: 600;
+    transition: opacity 150ms, transform 150ms;
+  }
+  .primary:active { opacity: 0.9; transform: scale(0.99); }
+  .outline {
+    min-height: 44px;
+    padding: 10px 16px;
+    background: var(--card);
+    border: 1px solid var(--point);
+    border-radius: var(--radius);
+    color: var(--point);
+    font-size: 15px;
+    font-weight: 600;
+    transition: opacity 150ms;
+  }
+  .outline:active { opacity: 0.8; }
+  .textbtn {
+    min-height: 44px;
+    padding: 10px 12px;
+    background: none;
+    border: none;
+    color: var(--sub);
+    font-size: 15px;
+  }
+
+  /* 진행률 */
+  .prog { margin: 4px 0 20px; }
+  .prog-track {
+    height: 6px;
+    background: var(--line);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .prog-fill {
+    display: block;
+    height: 100%;
+    width: 0;
+    background: var(--point);
+    border-radius: 999px;
+    transition: width 150ms;
+  }
+  .prog-text { margin-top: 8px; font-size: 14px; color: var(--sub); }
+
+  /* 섹션 */
+  .sec-title { font-size: 17px; font-weight: 700; margin: 28px 0 12px; }
+  .sec-desc { font-size: 14px; color: var(--sub); margin: -6px 0 12px; }
+
+  .cat { margin-bottom: 16px; }
+  .cat-name { font-size: 13px; font-weight: 600; color: var(--sub); margin-bottom: 8px; }
+  .cat-box {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .item {
+    display: flex;
+    align-items: center;
+    border-top: 1px solid var(--line);
+  }
+  .cat-box .item:first-child { border-top: none; }
+  .item-main {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 52px;
+    padding: 8px 4px 8px 14px;
+    min-width: 0;
+    cursor: pointer;
+  }
+  .item-main input[type="checkbox"] {
+    width: 20px; height: 20px;
+    flex: 0 0 auto;
+    accent-color: var(--point);
+    margin: 0;
+  }
+  .item-name { flex: 1 1 auto; word-break: keep-all; }
+  .item.done .item-name { color: var(--sub); text-decoration: line-through; }
+  .item-qty { flex: 0 0 auto; font-size: 14px; color: var(--sub); }
+  .item-x {
+    flex: 0 0 auto;
+    width: 44px; height: 44px;
+    display: flex; align-items: center; justify-content: center;
+    background: none; border: none; color: #B0B0B0;
+    transition: opacity 150ms;
+  }
+  .item-x:active { opacity: 0.6; }
+
+  /* 추천 카드 */
+  .sug {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 14px;
+    margin-bottom: 10px;
+    transition: opacity 150ms;
+  }
+  .sug-name { font-weight: 600; margin-bottom: 4px; }
+  .sug-reason { font-size: 14px; color: var(--sub); margin-bottom: 12px; word-break: keep-all; }
+  .sug-actions { display: flex; gap: 8px; align-items: center; }
+  .sug-actions .outline { flex: 0 0 auto; }
+  .empty {
+    font-size: 14px; color: var(--sub);
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 16px; text-align: center;
+  }
+
+  /* 하단 고정 바 */
+  .bottom {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    background: var(--card);
+    border-top: 1px solid var(--line);
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  }
+  .bottom-inner { max-width: 480px; margin: 0 auto; }
+
+  /* 토스트 */
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: 96px;
+    transform: translate(-50%, 8px);
+    background: #1A1A1A;
+    color: #FFFFFF;
+    font-size: 14px;
+    padding: 12px 18px;
+    border-radius: var(--radius);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 150ms, transform 150ms;
+    z-index: 10;
+    max-width: calc(100% - 32px);
+    text-align: center;
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  @media (min-width: 480px) {
+    .wrap { padding-bottom: 120px; }
+  }
