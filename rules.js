@@ -5,10 +5,33 @@
 
 var CATEGORY_ORDER = ['서류·금융', '전자기기', '의류', '세면·화장', '의약품', '기타'];
 
-// 국가별 콘센트 타입
-var ADAPTER_TYPE = {
-  jp: 'A형', cn: 'A/I형', sea: 'A/C형', eu: 'C형', us: 'A형', oc: 'I형', etc: ''
-};
+/* ============================================================
+   국가 목록과 콘센트 타입
+   국가를 추가하려면 아래에 한 줄만 넣으면 됩니다.
+   화면의 국가 선택 버튼도 이 목록에서 자동으로 만들어집니다.
+     code    : 공유 링크에 들어가는 짧은 코드. 겹치면 안 됩니다.
+     label   : 화면에 보이는 이름
+     adapter : 콘센트 타입. 빈 문자열이면 타입을 표시하지 않습니다.
+   영국은 유럽 본토(C형)와 콘센트 규격이 달라서(G형) 따로 둡니다.
+   ============================================================ */
+var COUNTRIES = [
+  { code: 'jp',  label: '일본',       adapter: 'A형' },
+  { code: 'cn',  label: '중국',       adapter: 'A/I형' },
+  { code: 'sea', label: '동남아',     adapter: 'A/C형' },
+  { code: 'eu',  label: '유럽',       adapter: 'C형' },
+  { code: 'uk',  label: '영국',       adapter: 'G형' },
+  { code: 'us',  label: '미주',       adapter: 'A형' },
+  { code: 'oc',  label: '오세아니아', adapter: 'I형' },
+  { code: 'etc', label: '기타',       adapter: '' }
+];
+
+// 국가 코드로 콘센트 타입을 찾습니다.
+function adapterType(code) {
+  for (var i = 0; i < COUNTRIES.length; i++) {
+    if (COUNTRIES[i].code === code) { return COUNTRIES[i].adapter; }
+  }
+  return '';
+}
 
 /* ============================================================
    수량 계산식
@@ -29,10 +52,11 @@ var QTY_FORMULA = {
 //  - type     : 'auto'(바로 리스트에 추가) 또는 'suggest'(추천 카드로 노출)
 //  - qty      : 숫자, 계산식 문자열(위 QTY_FORMULA 참고), 또는 null(수량 표시 없음)
 //  - reason   : 추천 카드에 보이는 한 줄 이유. 'auto' 항목은 null.
+//               함수로 쓰면 여행 조건(t)에 따라 문구를 바꿀 수 있습니다. (접이식 우산 참고)
 //  - when     : 조건 함수(true 면 포함) 또는 null(항상 포함)
 //    조건 함수에 넘어오는 t 의 형태:
 //      t.destination : 'domestic' | 'overseas'
-//      t.country     : 'jp' | 'cn' | 'sea' | 'eu' | 'us' | 'oc' | 'etc' | null
+//      t.country     : 위 COUNTRIES 의 code ('jp','cn','sea','eu','uk','us','oc','etc') 또는 null
 //      t.month       : 1 ~ 12
 //      t.nights      : 0 | 1 | 2 | 4 | 7  (박수)
 //      t.purpose     : 'tour' | 'relax' | 'active' | 'biz'
@@ -56,7 +80,7 @@ var RULES = [
   { id: 'passport_copy', name: '여권 사본',            category: '서류·금융', type: 'auto', qty: null, reason: null, when: function (t) { return t.destination === 'overseas'; } },
   { id: 'adapter',
     name: function (t) {
-      var type = ADAPTER_TYPE[t.country];
+      var type = adapterType(t.country);
       return type ? '콘센트 어댑터 (' + type + ')' : '콘센트 어댑터';
     },
     category: '전자기기', type: 'auto', qty: null, reason: null, when: function (t) { return t.destination === 'overseas'; } },
@@ -77,8 +101,12 @@ var RULES = [
     when: function (t) { return t.purpose === 'relax'; } },
   { id: 'sandals',    name: '샌들·슬리퍼', category: '의류',     type: 'suggest', qty: null, reason: '숙소에서 신을 신발이 필요합니다',
     when: function (t) { return t.purpose === 'relax' || t.nights >= 1; } },
-  { id: 'umbrella',   name: '접이식 우산', category: '기타',     type: 'suggest', qty: null, reason: '이 시기·지역은 비가 잦습니다',
-    when: function (t) { return (t.month >= 6 && t.month <= 8) || t.country === 'sea' || t.country === 'eu'; } },
+  { id: 'umbrella',   name: '접이식 우산', category: '기타',     type: 'suggest', qty: null,
+    // 영국은 이유 문구를 따로 씁니다. 그 외 지역은 일반 문구를 그대로 씁니다.
+    reason: function (t) {
+      return t.country === 'uk' ? '영국은 ' + t.month + '월에도 비가 잦습니다' : '이 시기·지역은 비가 잦습니다';
+    },
+    when: function (t) { return (t.month >= 6 && t.month <= 8) || t.country === 'sea' || t.country === 'eu' || t.country === 'uk'; } },
   { id: 'gloves',     name: '장갑',       category: '의류',     type: 'suggest', qty: null, reason: '기온이 낮은 시기입니다',
     when: function (t) { return t.month >= 11 || t.month <= 2; } },
   { id: 'muffler',    name: '목도리',      category: '의류',     type: 'suggest', qty: null, reason: '기온이 낮은 시기입니다',

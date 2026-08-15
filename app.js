@@ -9,10 +9,10 @@
   /* ============================================================
      선택지 정의 (STEP 1 버튼과 공유 링크 코드에 함께 쓰입니다)
      ============================================================ */
-  // rules.js 가 함께 있어야 동작합니다. (index.html / rules.js / style.css 세 파일을 같은 폴더에 두세요)
+  // rules.js 가 함께 있어야 동작합니다. (index.html / rules.js / styles.css / app.js 네 파일을 같은 폴더에)
   if (typeof RULES === 'undefined') {
     document.body.innerHTML = '<div style="padding:24px;font-family:sans-serif">rules.js 파일을 찾을 수 없습니다. '
-      + 'index.html, rules.js, style.css 를 같은 폴더에 두고 다시 열어 주세요.</div>';
+      + 'index.html, rules.js, styles.css, app.js 를 같은 폴더에 두고 다시 열어 주세요.</div>';
     return;
   }
 
@@ -21,15 +21,8 @@
       { code: 'domestic', label: '국내' },
       { code: 'overseas', label: '해외' }
     ],
-    country: [
-      { code: 'jp',  label: '일본' },
-      { code: 'cn',  label: '중국' },
-      { code: 'sea', label: '동남아' },
-      { code: 'eu',  label: '유럽' },
-      { code: 'us',  label: '미주' },
-      { code: 'oc',  label: '오세아니아' },
-      { code: 'etc', label: '기타' }
-    ],
+    // 국가 목록은 rules.js 의 COUNTRIES 를 그대로 씁니다. (국가 추가는 rules.js 에서)
+    country: COUNTRIES,
     // code 는 박수(숫자)입니다. 공유 링크의 n 값으로도 그대로 쓰입니다.
     nights: [
       { code: 0, label: '당일' },
@@ -53,17 +46,17 @@
 
 
   /* ============================================================
-     GA 이벤트 전송 헬퍼
-     gtag 가 없거나 광고 차단기에 막혀도 화면이 죽지 않도록 감쌉니다.
+     이벤트 기록 헬퍼
+     지금은 브라우저 콘솔에만 찍습니다. (F12 -> Console 탭에서 확인)
+     나중에 측정 도구를 붙일 때 이 함수 안만 바꾸면 되도록,
+     이벤트 발생 지점은 코드 곳곳에 그대로 남겨 둡니다.
      모든 이벤트는 반드시 이 함수로만 보냅니다.
      ============================================================ */
   function track(name, params) {
     try {
-      if (typeof window.gtag === 'function') {
-        window.gtag('event', name, params || {});
-      }
+      console.log('[track]', name, params || {});
     } catch (e) {
-      // 측정 실패가 서비스 동작을 막지 않도록 무시합니다.
+      // 콘솔이 없는 환경에서도 화면이 죽지 않도록 무시합니다.
     }
   }
 
@@ -85,8 +78,30 @@
     trip: null,        // { destination, country, month, nights, purpose, headcount }
     items: [],         // 필수 준비물 [{ id, name, category, qty, checked }]
     suggestions: [],   // 추천 카드 [{ id, name, category, reason }]
-    sent: {}           // 이벤트 중복 전송 방지
+    sent: {},          // 이벤트 중복 전송 방지
+    log: null          // 관찰 테스트 기록 (아래 newLog 참고)
   };
+
+  // 테스터가 이번 리스트에서 무엇을 했는지 누적합니다. "테스트 기록 복사" 버튼이 이걸 씁니다.
+  function newLog(source, autoCount) {
+    return {
+      source: source,      // 'direct'(직접 입력) 또는 'shared'(공유 링크로 진입)
+      autoCount: autoCount, // 자동 생성된 필수 항목 수
+      added: [],           // 추가한 추천 항목 이름
+      rejected: [],        // 필요 없다고 한 추천 항목 이름
+      removed: []          // 삭제한 필수 항목 이름
+    };
+  }
+
+  // 같은 항목이 두 번 쌓이지 않게 합니다.
+  function logOnce(field, name) {
+    if (!state.log) { return; }
+    var list = state.log[field];
+    for (var i = 0; i < list.length; i++) {
+      if (list[i] === name) { return; }
+    }
+    list.push(name);
+  }
 
   // STEP 1 에서 고르는 중인 값
   var draft = {
@@ -103,6 +118,10 @@
      ============================================================ */
   function resolveName(rule, trip) {
     return typeof rule.name === 'function' ? rule.name(trip) : rule.name;
+  }
+
+  function resolveReason(rule, trip) {
+    return typeof rule.reason === 'function' ? rule.reason(trip) : rule.reason;
   }
 
   function calcQty(qty, trip) {
@@ -128,7 +147,7 @@
         entry.checked = false;
         items.push(entry);
       } else {
-        entry.reason = rule.reason;
+        entry.reason = resolveReason(rule, trip);
         suggestions.push(entry);
       }
     }
@@ -164,7 +183,8 @@
         trip: state.trip,
         items: state.items,
         suggestions: state.suggestions,
-        sent: state.sent
+        sent: state.sent,
+        log: state.log
       }));
     } catch (e) {
       // 저장 실패(시크릿 모드 등)는 무시합니다.
@@ -398,20 +418,22 @@
     state.items = built.items;
     state.suggestions = built.suggestions;
     state.sent = {};
+    state.log = newLog(fromShare ? 'shared' : 'direct', built.items.length);
     save();
     render();
     window.scrollTo(0, 0);
-    if (!fromShare) {
-      track('list_generated', {
-        destination: trip.destination,
-        country: trip.destination === 'overseas' ? trip.country : 'none',
-        month: trip.month,
-        nights: trip.nights,
-        purpose: trip.purpose,
-        headcount: trip.headcount,
-        suggestion_count: built.suggestions.length
-      });
-    }
+    // 공유 링크로 들어온 경우에도 리스트는 생성된 것이므로 함께 기록합니다.
+    // source 로 직접 입력과 구분합니다.
+    track('list_generated', {
+      destination: trip.destination,
+      country: trip.destination === 'overseas' ? trip.country : 'none',
+      month: trip.month,
+      nights: trip.nights,
+      purpose: trip.purpose,
+      headcount: trip.headcount,
+      suggestion_count: built.suggestions.length,
+      source: fromShare ? 'shared' : 'direct'
+    });
   }
 
   function findIndexById(list, id) {
@@ -427,6 +449,7 @@
     var s = state.suggestions[index];
     state.suggestions.splice(index, 1);
     state.items.push({ id: s.id, name: s.name, category: s.category, qty: s.qty, checked: false });
+    logOnce('added', s.name);
     trackOnce('suggestion_added', s.id, { item_name: s.name, item_category: s.category });
     save();
     render();
@@ -437,6 +460,7 @@
     if (index < 0) { return; }
     var s = state.suggestions[index];
     state.suggestions.splice(index, 1);
+    logOnce('rejected', s.name);
     trackOnce('suggestion_rejected', s.id, { item_name: s.name, item_category: s.category });
     save();
     render();
@@ -447,6 +471,7 @@
     if (index < 0) { return; }
     var item = state.items[index];
     state.items.splice(index, 1);
+    logOnce('removed', item.name);
     trackOnce('essential_removed', item.id, { item_name: item.name, item_category: item.category });
     save();
     render();
@@ -514,11 +539,58 @@
     });
   }
 
-  function shareList() {
+  function checkedCount() {
     var checked = 0;
     for (var i = 0; i < state.items.length; i++) {
       if (state.items[i].checked) { checked++; }
     }
+    return checked;
+  }
+
+  /* ============================================================
+     관찰 테스트 기록
+     테스터가 다 쓰고 나서 이 텍스트를 복사해 보내면 집계가 끝납니다.
+     ============================================================ */
+  function tripConditionText(trip) {
+    var parts = [labelOf('destination', trip.destination)];
+    if (trip.destination === 'overseas') { parts.push(labelOf('country', trip.country)); }
+    parts.push(trip.month + '월');
+    parts.push(labelOf('nights', trip.nights));
+    parts.push(labelOf('purpose', trip.purpose));
+    parts.push(labelOf('headcount', trip.headcount));
+    return parts.join(' / ');
+  }
+
+  function logLine(label, names) {
+    return label + '(' + names.length + '): ' + (names.length ? names.join(', ') : '없음');
+  }
+
+  function buildTestLogText() {
+    var log = state.log || newLog('direct', state.items.length);
+    var head = log.source === 'shared'
+      ? '[PackCheck 테스트기록 / 공유링크 진입]'
+      : '[PackCheck 테스트기록]';
+    return [
+      head,
+      '조건: ' + tripConditionText(state.trip),
+      '자동 생성 항목: ' + log.autoCount + '개',
+      logLine('추가한 추천 항목', log.added),
+      logLine('거절한 추천 항목', log.rejected),
+      logLine('삭제한 필수 항목', log.removed),
+      '체크 완료: ' + checkedCount() + ' / ' + state.items.length
+    ].join('\n');
+  }
+
+  function copyTestLog() {
+    copyText(buildTestLogText()).then(function () {
+      showToast('복사되었습니다');
+    }).catch(function () {
+      showToast('복사에 실패했습니다. 텍스트를 직접 선택해 주세요');
+    });
+  }
+
+  function shareList() {
+    var checked = checkedCount();
     track('list_shared', { total_items: state.items.length, checked_items: checked });
 
     copyText(buildShareText()).then(function () {
@@ -535,6 +607,7 @@
     state.items = [];
     state.suggestions = [];
     state.sent = {};
+    state.log = null;
     draft.destination = null;
     draft.country = null;
     draft.month = new Date().getMonth() + 1;
@@ -603,6 +676,7 @@
   });
 
   $('shareBtn').addEventListener('click', shareList);
+  $('testLogBtn').addEventListener('click', copyTestLog);
   $('resetBtn').addEventListener('click', resetAll);
 
   /* ============================================================
@@ -634,6 +708,7 @@
       state.items = saved.items;
       state.suggestions = saved.suggestions || [];
       state.sent = saved.sent || {};
+      state.log = saved.log || null;
       draft.destination = saved.trip.destination;
       draft.country = saved.trip.country;
       draft.month = saved.trip.month;
