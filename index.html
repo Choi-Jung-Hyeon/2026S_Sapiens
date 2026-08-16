@@ -66,6 +66,13 @@
     <h2 class="sec-title">필수 준비물</h2>
     <div id="essentials"></div>
 
+    <!-- 규칙 테이블에 없는 개인 준비물을 직접 넣는 칸입니다. -->
+    <div class="add-row">
+      <input type="text" id="customInput" class="add-input" maxlength="40" autocomplete="off"
+             placeholder="직접 챙길 것 입력 (예: 렌즈 세척액)" aria-label="직접 챙길 것 입력">
+      <button type="button" id="customAddBtn" class="outline add-btn">추가</button>
+    </div>
+
     <h2 class="sec-title">이런 것도 필요하지 않으세요?</h2>
     <p class="sec-desc">입력한 조건에 맞춰 골라 봤습니다.</p>
     <div id="suggestions"></div>
@@ -74,13 +81,18 @@
 
 <div class="bottom hidden" id="bottomBar">
   <div class="bottom-inner">
+    <!-- 수요 확인용 버튼입니다. 실제 알림 기능은 아직 없습니다. -->
+    <button type="button" id="notifyBtn" class="outline notify-btn">출발 1시간 전 알림 받기</button>
     <button type="button" id="shareBtn" class="primary">체크리스트 공유하기</button>
     <!-- 관찰 테스트용. 테스터가 다 쓰고 눌러서 기록을 보내 줍니다. -->
     <button type="button" id="testLogBtn" class="logbtn">테스트 기록 복사</button>
   </div>
 </div>
 
-<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="toast" id="toast" role="status" aria-live="polite">
+  <span id="toastMsg"></span>
+  <button type="button" id="toastUndo" class="toast-undo hidden">실행 취소</button>
+</div>
 
 <!-- 준비물 규칙 테이블. 준비물을 바꾸려면 rules.js 만 고치면 됩니다. -->
 <script src="rules.js"></script>

@@ -3,7 +3,8 @@
    주의: 이 파일은 일반 <script src="rules.js"></script> 로 읽힙니다.
         import / export 를 쓰거나 fetch 로 불러오면 file:// 에서 열리지 않습니다. */
 
-var CATEGORY_ORDER = ['서류·금융', '전자기기', '의류', '세면·화장', '의약품', '기타'];
+// '직접 추가' 는 사용자가 직접 넣은 항목이 모이는 칸입니다. 규칙 테이블에는 쓰지 않습니다.
+var CATEGORY_ORDER = ['서류·금융', '전자기기', '의류', '세면·화장', '의약품', '기타', '직접 추가'];
 
 /* ============================================================
    국가 목록과 콘센트 타입
@@ -34,6 +35,19 @@ function adapterType(code) {
 }
 
 /* ============================================================
+   계절 판정용 월
+   오세아니아(호주·뉴질랜드)는 남반구라 계절이 북반구와 반대입니다.
+   그래서 계절 조건을 볼 때만 월을 6개월 이동시켜 평가합니다. (7월 -> 1월, 12월 -> 6월)
+   아래 RULES 의 when 에서 계절 조건은 t.month 가 아니라 반드시 seasonMonth(t) 를 쓰세요.
+   콘센트 타입 같은 지역 규칙은 t.country 를 그대로 보므로 영향을 받지 않습니다.
+   화면에 보이는 월(요약, 테스트 기록)은 실제 출발 월 그대로입니다.
+   ============================================================ */
+function seasonMonth(t) {
+  if (t.country !== 'oc') { return t.month; }
+  return ((t.month + 5) % 12) + 1;
+}
+
+/* ============================================================
    수량 계산식
    RULES 의 qty 에 아래 문자열을 쓰면 박수(nights)로 계산됩니다.
    새 계산식이 필요하면 여기에 한 줄 추가하세요.
@@ -52,7 +66,7 @@ var QTY_FORMULA = {
 //  - type     : 'auto'(바로 리스트에 추가) 또는 'suggest'(추천 카드로 노출)
 //  - qty      : 숫자, 계산식 문자열(위 QTY_FORMULA 참고), 또는 null(수량 표시 없음)
 //  - reason   : 추천 카드에 보이는 한 줄 이유. 'auto' 항목은 null.
-//               함수로 쓰면 여행 조건(t)에 따라 문구를 바꿀 수 있습니다. (접이식 우산 참고)
+//               함수로 쓰면 여행 조건(t)에 따라 문구를 바꿀 수 있습니다.
 //  - when     : 조건 함수(true 면 포함) 또는 null(항상 포함)
 //    조건 함수에 넘어오는 t 의 형태:
 //      t.destination : 'domestic' | 'overseas'
@@ -77,7 +91,6 @@ var RULES = [
   { id: 'medicine',   name: '상비약 (진통제·소화제·밴드)', category: '의약품', type: 'auto', qty: null,            reason: null, when: null },
 
   /* --- 해외일 때 자동 추가 --- */
-  { id: 'passport_copy', name: '여권 사본',            category: '서류·금융', type: 'auto', qty: null, reason: null, when: function (t) { return t.destination === 'overseas'; } },
   { id: 'adapter',
     name: function (t) {
       var type = adapterType(t.country);
@@ -88,33 +101,40 @@ var RULES = [
   { id: 'currency',   name: '현지 화폐 (환전)',        category: '서류·금융', type: 'auto', qty: null, reason: null, when: function (t) { return t.destination === 'overseas'; } },
   { id: 'sim',        name: '유심 또는 eSIM',          category: '전자기기',  type: 'auto', qty: null, reason: null, when: function (t) { return t.destination === 'overseas'; } },
 
+  /* --- 조건이 맞으면 자동 추가 --- */
+  // 1차 테스트에서 노출된 사람의 절반이 직접 추가해서, 추천 카드가 아니라 필수 목록으로 올렸습니다.
+  // 노출 조건(6~8월, 동남아, 유럽, 영국)은 1차와 같습니다.
+  { id: 'umbrella',   name: '접이식 우산', category: '기타', type: 'auto', qty: null, reason: null,
+    when: function (t) {
+      var m = seasonMonth(t);
+      return (m >= 6 && m <= 8) || t.country === 'sea' || t.country === 'eu' || t.country === 'uk';
+    } },
+
   /* --- 조건부 추천 항목 --- */
+  // 1차 테스트에서 해외 테스터의 70%가 직접 지워서, 필수에서 추천으로 내렸습니다.
+  { id: 'passport_copy', name: '여권 사본', category: '서류·금융', type: 'suggest', qty: null,
+    reason: '분실 대비용입니다. 사진으로 대체하는 분도 많습니다',
+    when: function (t) { return t.destination === 'overseas'; } },
   { id: 'sunscreen',  name: '선크림',      category: '세면·화장', type: 'suggest', qty: null, reason: '자외선이 강한 시기입니다',
-    when: function (t) { return (t.month >= 5 && t.month <= 9) || t.purpose === 'relax'; } },
+    when: function (t) { var m = seasonMonth(t); return (m >= 5 && m <= 9) || t.purpose === 'relax'; } },
   { id: 'sunglasses', name: '선글라스',    category: '기타',     type: 'suggest', qty: null, reason: '야외 활동이 많을 것 같습니다',
-    when: function (t) { return (t.month >= 5 && t.month <= 9) || t.purpose === 'relax'; } },
+    when: function (t) { var m = seasonMonth(t); return (m >= 5 && m <= 9) || t.purpose === 'relax'; } },
   { id: 'cap',        name: '모자',       category: '의류',     type: 'suggest', qty: null, reason: '햇빛을 오래 받는 일정입니다',
-    when: function (t) { return (t.month >= 5 && t.month <= 9) || t.purpose === 'relax'; } },
+    when: function (t) { var m = seasonMonth(t); return (m >= 5 && m <= 9) || t.purpose === 'relax'; } },
   { id: 'swimsuit',   name: '수영복',      category: '의류',     type: 'suggest', qty: null, reason: '물놀이 일정이 있을 수 있습니다',
     when: function (t) { return t.purpose === 'relax'; } },
   { id: 'beachtowel', name: '비치타월',    category: '기타',     type: 'suggest', qty: null, reason: '숙소 수건은 반출이 어려울 수 있습니다',
     when: function (t) { return t.purpose === 'relax'; } },
   { id: 'sandals',    name: '샌들·슬리퍼', category: '의류',     type: 'suggest', qty: null, reason: '숙소에서 신을 신발이 필요합니다',
     when: function (t) { return t.purpose === 'relax' || t.nights >= 1; } },
-  { id: 'umbrella',   name: '접이식 우산', category: '기타',     type: 'suggest', qty: null,
-    // 영국은 이유 문구를 따로 씁니다. 그 외 지역은 일반 문구를 그대로 씁니다.
-    reason: function (t) {
-      return t.country === 'uk' ? '영국은 ' + t.month + '월에도 비가 잦습니다' : '이 시기·지역은 비가 잦습니다';
-    },
-    when: function (t) { return (t.month >= 6 && t.month <= 8) || t.country === 'sea' || t.country === 'eu' || t.country === 'uk'; } },
   { id: 'gloves',     name: '장갑',       category: '의류',     type: 'suggest', qty: null, reason: '기온이 낮은 시기입니다',
-    when: function (t) { return t.month >= 11 || t.month <= 2; } },
+    when: function (t) { var m = seasonMonth(t); return m >= 11 || m <= 2; } },
   { id: 'muffler',    name: '목도리',      category: '의류',     type: 'suggest', qty: null, reason: '기온이 낮은 시기입니다',
-    when: function (t) { return t.month >= 11 || t.month <= 2; } },
+    when: function (t) { var m = seasonMonth(t); return m >= 11 || m <= 2; } },
   { id: 'heatpack',   name: '핫팩',       category: '기타',     type: 'suggest', qty: null, reason: '야외 대기 시간이 길 수 있습니다',
-    when: function (t) { return t.month === 12 || t.month <= 2; } },
+    when: function (t) { var m = seasonMonth(t); return m === 12 || m <= 2; } },
   { id: 'lipbalm',    name: '립밤',       category: '세면·화장', type: 'suggest', qty: null, reason: '건조한 시기입니다',
-    when: function (t) { return t.month >= 11 || t.month <= 3; } },
+    when: function (t) { var m = seasonMonth(t); return m >= 11 || m <= 3; } },
   { id: 'sneakers',   name: '편한 운동화', category: '의류',     type: 'suggest', qty: null, reason: '하루 이동 거리가 깁니다',
     when: function (t) { return t.purpose === 'tour' || t.purpose === 'active'; } },
   { id: 'ecobag',     name: '접이식 에코백', category: '기타',   type: 'suggest', qty: null, reason: '기념품이나 짐이 늘어납니다',
@@ -129,8 +149,7 @@ var RULES = [
     when: function (t) { return t.nights >= 4; } },
   { id: 'detergent',  name: '세탁세제 시트', category: '기타',   type: 'suggest', qty: null, reason: '중간 세탁이 필요할 수 있습니다',
     when: function (t) { return t.nights >= 7; } },
-  { id: 'namecard',   name: '명함',        category: '서류·금융', type: 'suggest', qty: null, reason: '미팅 일정이 있을 수 있습니다',
-    when: function (t) { return t.purpose === 'biz'; } },
+  // 명함은 1차 테스트에서 노출 2회 / 추가 0회라 규칙에서 뺐습니다.
   { id: 'laptop',     name: '노트북·충전기', category: '전자기기', type: 'suggest', qty: null, reason: '업무 일정이 있습니다',
     when: function (t) { return t.purpose === 'biz'; } },
   { id: 'tripod',     name: '삼각대·셀카봉', category: '전자기기', type: 'suggest', qty: null, reason: '함께 찍을 사진이 많습니다',

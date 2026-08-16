@@ -26,7 +26,8 @@
   .wrap {
     max-width: 480px;
     margin: 0 auto;
-    padding: 0 16px 160px;
+    /* 하단 고정 바(알림·공유·기록 버튼)에 가리지 않도록 여유를 둡니다. */
+    padding: 0 16px 220px;
   }
 
   /* 상단 헤더 */
@@ -182,6 +183,24 @@
   }
   .item-x:active { opacity: 0.6; }
 
+  /* 직접 항목 추가 줄 (필수 목록 아래, 추천 카드 위) */
+  .add-row { display: flex; gap: 8px; margin: 4px 0 8px; }
+  .add-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 44px;
+    padding: 10px 12px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 15px;
+  }
+  .add-input::placeholder { color: #B0B0B0; }
+  .add-input:focus { outline: none; border-color: var(--point); }
+  .add-btn { flex: 0 0 auto; }
+
   /* 추천 카드 */
   .sug {
     background: var(--card);
@@ -211,6 +230,19 @@
   }
   .bottom-inner { max-width: 480px; margin: 0 auto; }
 
+  /* 알림 받기 버튼 (수요 확인용) */
+  .notify-btn {
+    display: block;
+    width: 100%;
+    margin-bottom: 8px;
+  }
+  .notify-btn:disabled {
+    border-color: var(--line);
+    color: var(--sub);
+    background: var(--bg);
+    cursor: default;
+  }
+
   /* 관찰 테스트용 링크. 눈에 띄지 않게 둡니다. */
   .logbtn {
     display: block;
@@ -229,12 +261,16 @@
   .toast {
     position: fixed;
     left: 50%;
-    bottom: 96px;
+    bottom: 184px;
     transform: translate(-50%, 8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
     background: #1A1A1A;
     color: #FFFFFF;
     font-size: 14px;
-    padding: 12px 18px;
+    padding: 8px 12px 8px 18px;
     border-radius: var(--radius);
     opacity: 0;
     pointer-events: none;
@@ -244,7 +280,21 @@
     text-align: center;
   }
   .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  /* 토스트 자체는 탭을 막지 않고, 실행 취소 버튼만 눌리게 합니다. */
+  .toast-undo {
+    flex: 0 0 auto;
+    min-height: 36px;
+    padding: 6px 10px;
+    background: none;
+    border: none;
+    color: #8AB4F8;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: underline;
+    pointer-events: auto;
+  }
+  .toast-undo:active { opacity: 0.7; }
 
   @media (min-width: 480px) {
-    .wrap { padding-bottom: 140px; }
+    .wrap { padding-bottom: 200px; }
   }

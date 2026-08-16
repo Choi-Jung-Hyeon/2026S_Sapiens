@@ -89,8 +89,23 @@
       autoCount: autoCount, // 자동 생성된 필수 항목 수
       added: [],           // 추가한 추천 항목 이름
       rejected: [],        // 필요 없다고 한 추천 항목 이름
-      removed: []          // 삭제한 필수 항목 이름
+      removed: [],         // 삭제한 필수 항목 이름
+      custom: [],          // 직접 추가한 항목 이름
+      undoCount: 0,        // 실행 취소를 누른 횟수
+      notify: false        // 알림 받기 버튼을 눌렀는지
     };
+  }
+
+  // 1차 때 저장된 기록에는 새 항목이 없으므로 채워 넣습니다.
+  function normalizeLog(log, autoCount) {
+    if (!log) { return newLog('direct', autoCount); }
+    if (!log.added) { log.added = []; }
+    if (!log.rejected) { log.rejected = []; }
+    if (!log.removed) { log.removed = []; }
+    if (!log.custom) { log.custom = []; }
+    if (typeof log.undoCount !== 'number') { log.undoCount = 0; }
+    if (typeof log.notify !== 'boolean') { log.notify = false; }
+    return log;
   }
 
   // 같은 항목이 두 번 쌓이지 않게 합니다.
@@ -101,6 +116,34 @@
       if (list[i] === name) { return; }
     }
     list.push(name);
+  }
+
+  function logIndexOf(field, name) {
+    if (!state.log) { return -1; }
+    var list = state.log[field];
+    for (var i = 0; i < list.length; i++) {
+      if (list[i] === name) { return i; }
+    }
+    return -1;
+  }
+
+  // 실행 취소했으면 집계에서 빼야 하므로 기록에서도 지웁니다.
+  function logRemove(field, name) {
+    var index = logIndexOf(field, name);
+    if (index >= 0) { state.log[field].splice(index, 1); }
+  }
+
+  // 실행 취소로 되살아난 항목은 원래 자리에 다시 넣습니다.
+  function logInsert(field, name, index) {
+    if (!state.log) { return; }
+    var list = state.log[field];
+    if (logIndexOf(field, name) >= 0) { return; }
+    list.splice(index >= 0 && index <= list.length ? index : list.length, 0, name);
+  }
+
+  // trackOnce 로 보낸 이벤트를 취소해, 같은 행동을 다시 하면 다시 집계되게 합니다.
+  function clearSent(name, key) {
+    delete state.sent[name + '|' + key];
   }
 
   // STEP 1 에서 고르는 중인 값
@@ -374,6 +417,14 @@
     box.innerHTML = html;
   }
 
+  // 알림 받기 버튼은 한 번 누르면 비활성으로 바뀝니다. (새로고침해도 유지)
+  function renderNotify() {
+    var btn = $('notifyBtn');
+    var used = !!(state.log && state.log.notify);
+    btn.disabled = used;
+    btn.textContent = used ? '알림 신청됨' : '출발 1시간 전 알림 받기';
+  }
+
   function renderStep2() {
     $('tripSummary').textContent = regionLabel(state.trip) + ' / ' + state.trip.month + '월 / '
       + labelOf('nights', state.trip.nights) + ' / ' + labelOf('purpose', state.trip.purpose) + ' / '
@@ -381,6 +432,7 @@
     renderProgress();
     renderEssentials();
     renderSuggestions();
+    renderNotify();
   }
 
   function render() {
@@ -400,12 +452,24 @@
      토스트
      ============================================================ */
   var toastTimer = null;
-  function showToast(message) {
-    var el = $('toast');
-    el.textContent = message;
-    el.classList.add('show');
-    if (toastTimer) { clearTimeout(toastTimer); }
-    toastTimer = setTimeout(function () { el.classList.remove('show'); }, 1800);
+  var undoAction = null;   // '실행 취소' 를 누르면 실행할 함수. 없으면 버튼을 숨깁니다.
+
+  function hideToast() {
+    if (toastTimer) { clearTimeout(toastTimer); toastTimer = null; }
+    undoAction = null;
+    $('toast').classList.remove('show');
+    $('toastUndo').classList.add('hidden');
+  }
+
+  // onUndo 를 넘기면 '실행 취소' 버튼이 함께 뜨고 5초간 유지됩니다.
+  // 새 토스트가 뜨면 이전 토스트는 즉시 닫혀서 두 개가 겹치지 않습니다.
+  function showToast(message, onUndo) {
+    hideToast();
+    $('toastMsg').textContent = message;
+    undoAction = onUndo || null;
+    $('toastUndo').classList.toggle('hidden', !undoAction);
+    $('toast').classList.add('show');
+    toastTimer = setTimeout(hideToast, undoAction ? 5000 : 1800);
   }
 
   /* ============================================================
@@ -413,6 +477,9 @@
      ============================================================ */
   function startList(trip, fromShare) {
     var built = buildList(trip);
+    // 이전 리스트에서 열려 있던 실행 취소가 새 리스트에 끼어들지 않게 닫습니다.
+    hideToast();
+    $('customInput').value = '';
     state.step = 2;
     state.trip = trip;
     state.items = built.items;
@@ -455,6 +522,12 @@
     render();
   }
 
+  // 실행 취소가 일어났을 때 공통으로 처리할 것: 횟수 기록 + 이벤트 전송.
+  function countUndo(itemName, undoneEvent) {
+    if (state.log) { state.log.undoCount++; }
+    track('undo_used', { item_name: itemName, undone_event: undoneEvent });
+  }
+
   function rejectSuggestion(id) {
     var index = findIndexById(state.suggestions, id);
     if (index < 0) { return; }
@@ -464,17 +537,89 @@
     trackOnce('suggestion_rejected', s.id, { item_name: s.name, item_category: s.category });
     save();
     render();
+    showToast(s.name + ' 추천에서 제외됨', function () {
+      // 원래 자리(추천 카드 순서)로 되돌립니다.
+      state.suggestions.splice(Math.min(index, state.suggestions.length), 0, s);
+      logRemove('rejected', s.name);
+      clearSent('suggestion_rejected', s.id);
+      countUndo(s.name, 'suggestion_rejected');
+      save();
+      render();
+    });
   }
 
   function removeItem(id) {
     var index = findIndexById(state.items, id);
     if (index < 0) { return; }
     var item = state.items[index];
+    var custom = isCustomId(item.id);
+    // 직접 추가한 항목은 '삭제한 필수 항목' 집계에 섞이면 안 되므로 따로 다룹니다.
+    var undoneEvent = custom ? 'custom_item_removed' : 'essential_removed';
+    var customLogIndex = custom ? logIndexOf('custom', item.name) : -1;
+
     state.items.splice(index, 1);
-    logOnce('removed', item.name);
-    trackOnce('essential_removed', item.id, { item_name: item.name, item_category: item.category });
+    if (custom) {
+      logRemove('custom', item.name);
+    } else {
+      logOnce('removed', item.name);
+      trackOnce('essential_removed', item.id, { item_name: item.name, item_category: item.category });
+    }
     save();
     render();
+    showToast(item.name + ' 삭제됨', function () {
+      // 원래 자리로 되돌립니다.
+      state.items.splice(Math.min(index, state.items.length), 0, item);
+      if (custom) {
+        logInsert('custom', item.name, customLogIndex);
+      } else {
+        logRemove('removed', item.name);
+        clearSent('essential_removed', item.id);
+      }
+      countUndo(item.name, undoneEvent);
+      save();
+      render();
+    });
+  }
+
+  /* ============================================================
+     직접 추가한 항목
+     규칙 테이블에 없는 개인 준비물을 사용자가 직접 넣습니다.
+     id 는 'custom_' 로 시작하게 만들어서 규칙 항목과 구분합니다.
+     ============================================================ */
+  var CUSTOM_CATEGORY = '직접 추가';
+  var customSeq = 0;
+
+  function isCustomId(id) {
+    return String(id).indexOf('custom_') === 0;
+  }
+
+  function newCustomId() {
+    var id;
+    do {
+      customSeq++;
+      id = 'custom_' + customSeq;
+    } while (findIndexById(state.items, id) >= 0);
+    return id;
+  }
+
+  function addCustomItem(rawName) {
+    // 빈 문자열이나 공백만 입력하면 아무 일도 일어나지 않습니다.
+    var name = String(rawName === null || rawName === undefined ? '' : rawName).replace(/^\s+|\s+$/g, '');
+    if (!name) { return false; }
+    var item = { id: newCustomId(), name: name, category: CUSTOM_CATEGORY, qty: null, checked: false };
+    state.items.push(item);
+    logOnce('custom', name);
+    track('custom_item_added', { item_name: name });
+    save();
+    render();
+    showToast('추가되었습니다');
+    return true;
+  }
+
+  function submitCustomItem() {
+    var input = $('customInput');
+    if (addCustomItem(input.value)) { input.value = ''; }
+    input.focus();
   }
 
   function toggleCheck(id, checked) {
@@ -561,12 +706,13 @@
     return parts.join(' / ');
   }
 
+  // 항목이 있으면 '라벨(개수): 이름, 이름', 없으면 '라벨: 없음' 으로 씁니다.
   function logLine(label, names) {
-    return label + '(' + names.length + '): ' + (names.length ? names.join(', ') : '없음');
+    return names.length ? label + '(' + names.length + '): ' + names.join(', ') : label + ': 없음';
   }
 
   function buildTestLogText() {
-    var log = state.log || newLog('direct', state.items.length);
+    var log = normalizeLog(state.log, state.items.length);
     var head = log.source === 'shared'
       ? '[PackCheck 테스트기록 / 공유링크 진입]'
       : '[PackCheck 테스트기록]';
@@ -577,6 +723,9 @@
       logLine('추가한 추천 항목', log.added),
       logLine('거절한 추천 항목', log.rejected),
       logLine('삭제한 필수 항목', log.removed),
+      logLine('직접 추가한 항목', log.custom),
+      '되돌리기 사용: ' + log.undoCount + '회',
+      '알림 버튼: ' + (log.notify ? '눌렀음' : '안 누름'),
       '체크 완료: ' + checkedCount() + ' / ' + state.items.length
     ].join('\n');
   }
@@ -600,8 +749,20 @@
     });
   }
 
+  // 수요 확인용 버튼입니다. 알림 기능 자체는 없고, 눌렀다는 사실만 기록합니다.
+  function requestNotify() {
+    if (state.log && state.log.notify) { return; }
+    if (state.log) { state.log.notify = true; }
+    trackOnce('notify_cta_click', 'cta', {});
+    save();
+    renderNotify();
+    showToast('준비 중인 기능입니다. 관심 감사합니다.');
+  }
+
   function resetAll() {
     clearSaved();
+    hideToast();
+    $('customInput').value = '';
     state.step = 1;
     state.trip = null;
     state.items = [];
@@ -675,6 +836,23 @@
     if (act === 'reject') { rejectSuggestion(btn.getAttribute('data-id')); }
   });
 
+  $('customAddBtn').addEventListener('click', submitCustomItem);
+
+  // 엔터 키로도 추가됩니다.
+  $('customInput').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.keyCode === 13) {
+      e.preventDefault();
+      submitCustomItem();
+    }
+  });
+
+  $('toastUndo').addEventListener('click', function () {
+    var action = undoAction;
+    hideToast();
+    if (action) { action(); }
+  });
+
+  $('notifyBtn').addEventListener('click', requestNotify);
   $('shareBtn').addEventListener('click', shareList);
   $('testLogBtn').addEventListener('click', copyTestLog);
   $('resetBtn').addEventListener('click', resetAll);
@@ -708,7 +886,7 @@
       state.items = saved.items;
       state.suggestions = saved.suggestions || [];
       state.sent = saved.sent || {};
-      state.log = saved.log || null;
+      state.log = normalizeLog(saved.log, state.items.length);
       draft.destination = saved.trip.destination;
       draft.country = saved.trip.country;
       draft.month = saved.trip.month;
